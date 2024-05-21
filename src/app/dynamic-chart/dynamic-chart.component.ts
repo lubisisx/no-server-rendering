@@ -6,10 +6,13 @@ import {
   AfterViewInit,
   ViewChild,
   ElementRef,
+  HostListener,
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { NgxEchartsModule, NGX_ECHARTS_CONFIG } from 'ngx-echarts';
 import * as echarts from 'echarts';
+import { BsModalRef, BsModalService } from 'ngx-bootstrap/modal';
+import { ConfirmationDialogComponent } from '../confirmation-dialog/confirmation-dialog.component';
 
 @Component({
   selector: 'app-dynamic-chart',
@@ -26,6 +29,8 @@ import * as echarts from 'echarts';
 })
 export class DynamicChartComponent implements OnInit, AfterViewInit {
   @ViewChild('chartContainer', { static: false }) chartContainer!: ElementRef;
+  private myChart!: echarts.ECharts;
+  bsModalRef!: BsModalRef;
 
   colors: any = {
     starchy: '#f06f09',
@@ -1264,7 +1269,7 @@ export class DynamicChartComponent implements OnInit, AfterViewInit {
     },
   ];
 
-  constructor() {}
+  constructor(private modalService: BsModalService) {}
 
   ngOnInit() {}
 
@@ -1274,7 +1279,7 @@ export class DynamicChartComponent implements OnInit, AfterViewInit {
 
   initChart() {
     const chartDom = this.chartContainer.nativeElement;
-    const myChart = echarts.init(chartDom);
+    this.myChart = echarts.init(chartDom);
 
     const option = {
       series: {
@@ -1287,12 +1292,40 @@ export class DynamicChartComponent implements OnInit, AfterViewInit {
       },
     };
 
-    myChart.setOption(option);
+    this.myChart.setOption(option);
 
-    myChart.on('click', (params: any) => {
+    this.myChart.on('click', (params: any) => {
       if (params && params.data && params.data.parents) {
-        console.log('Clicked on:', params.data);
+        const initialState = {
+          displayText: `You have selected a value of ${params.data.value} on the category: ${params.data.parents}. Are you sure you want to submit this value?`,
+        };
+        this.bsModalRef = this.modalService.show(ConfirmationDialogComponent, {
+          initialState,
+        });
+        this.bsModalRef.content.onClose.subscribe((result: any) => {
+          if (result) {
+            console.log('Clicked on:', params.data);
+            this.myChart.dispatchAction({
+              type: 'sunburstUnzoom',
+            });
+          }
+        });
       }
     });
+  }
+
+  //TODO: This is currently not resetting
+  resetChart() {
+    this.myChart.dispatchAction({
+      type: 'sunburstUnzoom',
+    });
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent) {
+    const target = event.target as HTMLElement;
+    if (!this.chartContainer.nativeElement.contains(target)) {
+      this.resetChart();
+    }
   }
 }
